@@ -1,6 +1,137 @@
+NAME
+    WWW::GMail - Perl extension for accessing Google Mail (gmail)
 
-Read the docs in the module
+SYNOPSIS
+      use WWW::GMail;
+  
+      my $obj = WWW::GMail->new(
+            username => "USERNAME",
+            password => "PASSWORD",
+            cookies => {
+                    autosave => 1,
+                    file => "./gmail.cookie",
+            },
+      );
+  
+      my $ret = $obj->login();
+      if ($ret == -1) {
+            print "password incorrect\n";
+      } elsif ($ret == 0) {
+            print "unable to login $obj->{error}\n";
+            exit;
+      }
+  
+      my @list = $obj->get_message_list('inbox');
+  
+      # count the new messages in the inbox
+      my $new_msgs = 0;
+      for my $i ( 0 .. $#list ) {
+            $new_msgs += $list[$i]->[1]; # count the unread flags
+      }
+  
+      $obj->logout();
 
+ABSTRACT
+    This module simplifies access to gmail.
 
-**Use this module at your own risk, and read your Google mail terms of use**
+DESCRIPTION
+    Currently it allows retrieval of message lists, and raw messages.
+
+  Methods
+    There are currently 5 methods
+
+    "new"
+        This will setup the object, useragent and cookie jar.
+
+        The HTTP::Cookies object is stored as $obj->{jar} The LWP::UserAgent
+        object is stored as $obj->{ua}
+
+        The new method accepts a hash of options:
+
+        "username"
+            GMail username, stored as $obj->{username}
+
+        "password"
+            GMail password, stored as $obj->{password}
+
+        "cookies"
+            A hash ref of options passed to HTTP::Cookies Specify {} to make
+            the session temporary.
+
+        "agent"
+            * Optional! A useragent string passed to LWP::UserAgent
+
+    "login"
+        Logs into GMail, DO THIS FIRST, duh...
+
+        Return values are: 1 login correct 0 some error happend, check
+        $obj->{error} for reason -1 incorrect password and/or username
+
+    "get_message_list"
+        This method returns an array of arrays Each array has an array of
+        info about the message Currenly, WWW::GMail doesn't strip the html
+        entities, do that yourself for now. A future version will have an
+        option passed to new() to adjust this.
+
+        The array
+
+              0     message id (pass this to get_message_raw)
+              1     unread = 1,read = 0
+              2     starred = 1,not = 0
+              3     date
+              4     from
+              5     indicator
+              6     subj
+              7     sent
+              8     labels
+              9     attachments
+              10    message id (again?)
+              11    ? unknown
+
+        See the SYNOPSIS
+
+        Also available after calling get_message_list is:
+
+          Used space    $self->{used}
+          Total space   $self->{total}
+          Percent used  $self->{percent_used}
+          Per page      $self->{per_page}
+          List total    $self->{list_total}
+          List folder   $self->{list_folder}
+
+          Labels        $self->{labels} (an array of arrays)
+          The array
+                 0              label
+                 1              number of new
+
+    "get_message_raw"
+        Pass it a message id from a message list (see get_message_list)
+        Retrieves the raw message as a scalar, headers and all. Returns
+        undef if there was an error or invalid id Check $obj->{error} for
+        messages
+
+    "logout"
+        Logs out the current logged in account.
+
+EXPORT
+    Nothing. Its all Object Orientated.
+
+SEE ALSO
+    LWP::UserAgent, HTTP::Cookies
+
+TODO
+    Contact management, label management, and better docs. Also, what
+    happends when the js_version changes? Enable persistant cookie?
+
+AUTHOR
+    David Davis <xantus@cpan.org>
+
+NOTICE
+    **Use this module at your own risk, and read your Gmail terms of use**
+
+COPYRIGHT AND LICENSE
+    Copyright 2004 by David Davis and Teknikill Software
+
+    This library is free software; you can redistribute it and/or modify it
+    under the same terms as Perl itself.
 

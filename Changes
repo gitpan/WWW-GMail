@@ -1,4 +1,10 @@
 Revision history for Perl extension WWW::GMail
 
+0.02  Wed Sep 29 20:32:21 2004
+	- fixed login sequence, gmail changed...
+	- added STDERR to debug prints
+	- README is just a pod2text of GMail.pm now
+	- renamed the only example
+
 0.01  Mon Jul 12 03:03:43 2004
 	- original version

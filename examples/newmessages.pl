@@ -6,13 +6,16 @@ use lib qw(/projects/lib);
 use WWW::GMail;
 use strict;
 
+die "$0 <user> <pass>\n" unless ($ARGV[0] && $ARGV[1]);
+
 my $g = WWW::GMail->new(
-	username => "USERNAME",
-	password => "PASSWORD",
+	username => $ARGV[0],
+	password => $ARGV[1],
 	cookies => {
 		autosave => 1,
 		file => "./gmail.cookie",
 	},
+#	debug => 1,
 );
 
 my $ret = $g->login();
@@ -34,6 +37,9 @@ my $new_msgs = 0;
 for my $i ( 0 .. $#list ) {
 	$new_msgs += $list[$i]->[1]; # count the unread flags
 }
+
+#require Data::Dumper;
+#print Data::Dumper->Dump([\@list]);
 
 print "Number of new messages in $g->{list_folder}: $new_msgs\n";
 

@@ -4,7 +4,7 @@ package WWW::GMail;
 # a perl interface to google mail
 # Copyright (c) 2004 - David Davis
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 use HTTP::Cookies;
 use LWP::UserAgent;
@@ -16,7 +16,7 @@ sub new {
 	my $class = shift;
 	my %opts = @_;
 
-	$self->{debug} && print "In new()\n";
+	$self->{debug} && print STDERR "In new()\n";
 	
 	unless ($opts{agent}) {
 		# fake as ie 6
@@ -26,18 +26,18 @@ sub new {
 	my $obj = bless(\%opts,$class);
 	
 	$obj->{error} = '';
-	$self->{debug} && print "Setting up useragent with agent [$opt{agent}]\n";
+	$self->{debug} && print STDERR "Setting user-agent to [$opt{agent}]\n";
 	
 	$obj->{ua} = LWP::UserAgent->new();
 	$obj->{ua}->agent($opts{agent});
 
-	$self->{debug} && print "Setting up cookie jar (HTTP\:\:Cookies)\n";
+	$self->{debug} && print STDERR "Setting up cookie jar (HTTP\:\:Cookies)\n";
 	
 	my $jar = $obj->{jar} = HTTP::Cookies->new(%{$opts{cookies}});
 
 	$obj->{ua}->cookie_jar($jar);
 	
-	$self->{debug} && print "new() complete\n";
+	$self->{debug} && print STDERR "new() complete\n";
 	
 	return $obj;
 }
@@ -48,12 +48,12 @@ sub login {
 	my $password = $self->{password};
 	my $content = undef;
 	
-	$self->{debug} && print "In login()\n";
+	$self->{debug} && print STDERR "In login()\n";
 	
 	# faster!
 	return 1 if ($self->js_version());
 
-	$self->{debug} && print "Setting up cookie jar\n";
+	$self->{debug} && print STDERR "Setting up cookie jar\n";
 	
 	$self->{jar}->set_cookie("0",	# version
 		"GMAIL_LOGIN",				# key
@@ -68,7 +68,7 @@ sub login {
 		{ }							# rest (Comment, CommentURL)
 	);
 	
-	$self->{debug} && print "Requesting login\n";
+	$self->{debug} && print STDERR "Requesting login\n";
 	
 	my $req = HTTP::Request->new(POST => 'https://www.google.com/accounts/ServiceLoginBoxAuth');
 	$req->content_type('application/x-www-form-urlencoded');
@@ -77,42 +77,27 @@ sub login {
 	delete $self->{http_status_line};
 	
 	if ($res->is_success) {
-		$self->{debug} && print "Request success\n";
+		$self->{debug} && print STDERR "Request success\n";
 		$content = $res->content;
-	
-		if ($content =~ m/var cookieVal=\s?"([^"]+)";/) {
-			$self->{debug} && print "Got login cookie\n";
-			
-			# $1 is our cookie, why oh why did they use javascript for this crap
-			# Ok, put this cookie in our cookie jar (har har)
-			$self->{jar}->set_cookie("0",	# version
-				"GV",						# key
-				$1,							# value
-				"/",						# path
-				".google.com",				# domain
-				undef,						# port
-				1,							# path_spec (bool)
-				0,							# secure (bool)
-				(60 * 60 * 24 * 7),			# max age ( 7 days )
-				0,							# discard (bool)
-				{ }							# rest (Comment, CommentURL)
-			);
-			
-			$self->{debug} && print "Saving cookie jar\n";
+
+		if ($content =~ m/top.location\s=\s"([^"]+)";/) {
+			$self->{debug} && print STDERR "Got login cookie\n";
+			$self->{debug} && print STDERR "Saving cookie jar\n";
 			
 			# make sure we save our cookies
 			$self->{jar}->save();
 			
-			$self->{debug} && print "Requesting cookie check\n";
+			$self->{debug} && print STDERR "Requesting cookie check\n";
 			
 			# load the CheckCookie url
 			#PersistentCookie=yes
-			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/CheckCookie?service=mail&continue=http%3A%2F%2Fgmail.google.com%2Fgmail&chtml=LoginDoneHtml');
+#			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/CheckCookie?service=mail&continue=http%3A%2F%2Fgmail.google.com%2Fgmail&chtml=LoginDoneHtml');
+			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/'.$1);
 			
 			$res = $self->{ua}->request($req);
 			delete $self->{http_status_line};
 			if ($res->is_success) {
-				$self->{debug} && print "Request success\n";
+				$self->{debug} && print STDERR "Request success\n";
 				$content = $res->content;
 				# TODO check content?
 				$req = HTTP::Request->new(GET => 'http://www.google.com/');
@@ -123,19 +108,24 @@ sub login {
 				$self->{error} = $res->status_line;
 			}
 		} elsif ($content =~ m/Username and password do not match/i) {
-			$self->{debug} && print "Username and/or password do not match\n";
+			$self->{debug} && print STDERR "Username and/or password do not match\n";
 			$self->{error} = "Username and/or password do not match";
 			return -1;
 		} else {
-			$self->{debug} && print "Uknown error\n";
+			$self->{debug} && do {
+				open(FH,">/tmp/gmail-debug.txt");
+				print FH $content;
+				close(FH);
+				print STDERR "Uknown error, content dumped to /tmp/gmail-debug.txt\n";
+			};
 			$self->{error} = "unknown error (module not smart enough)";
 		}
 	} else {
-		$self->{debug} && print "Request failure error[".$res->status_line."]\n";
+		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
 		$self->{error} = $res->status_line;
 	}
 	
-	$self->{debug} && print "login() error...\n";
+	$self->{debug} && print STDERR "login() error...\n";
 	
 	return 0;
 }
@@ -145,21 +135,21 @@ sub get_message_list {
 	my $folder = shift;
 	my $offset = shift || 0;
 	
-	$self->{debug} && print "In get_message_list(folder[$folder],offset[$offset])\n";
+	$self->{debug} && print STDERR "In get_message_list(folder[$folder],offset[$offset])\n";
 	
 	my $content = undef;
 	my $req = HTTP::Request->new(GET => sprintf("http://gmail.google.com/gmail?search=%s&view=tl&start=%d&init=1&zx=%s%s", $folder, $offset, $self->{js_version}, $self->zx()));
 	my $res = $self->{ua}->request($req);
 	my @list;
 	
-	$self->{debug} && print "Got request\n";
+	$self->{debug} && print STDERR "Got request\n";
 	
 	if ($res->is_success) {
-		$self->{debug} && print "Request success\n";
+		$self->{debug} && print STDERR "Request success\n";
 
 		$content = $res->content;
 		
-		$self->{debug} && print "Request success, processing list (if any)\n";
+		$self->{debug} && print STDERR "Request success, processing list (if any)\n";
 		
 		# process message list
 		while ($content =~ m/
@@ -186,7 +176,7 @@ sub get_message_list {
 			($self->{used}, $self->{total}, $self->{percent_used}) = ($1,$2,$3);
 		}
 	
-		$self->{debug} && print "Processed percentages used[$self->{used}] total[$self->{total}] percent_used[$self->{percent_used}]\n";
+		$self->{debug} && print STDERR "Processed percentages used[$self->{used}] total[$self->{total}] percent_used[$self->{percent_used}]\n";
 		
 		#D(["ts",0,50,88,0,"All Mail","fd5a5ed691",170]\n);
 		if ($content =~ m/D\(\["ts",(\d+),(\d+),(\d+),(\d+),"([^"]+)","([^"]+)",(\d+)\]/) {
@@ -195,7 +185,7 @@ sub get_message_list {
 				$self->{unknown_3}) = ($1,$2,$3,$4,$5,$6,$7);
 		}
 		
-		$self->{debug} && print "Processed misc data per_page[$self->{per_page}] list_total[$self->{list_total}]".
+		$self->{debug} && print STDERR "Processed misc data per_page[$self->{per_page}] list_total[$self->{list_total}]".
 			" list_folder[$self->{list_folder}] unknown_0[$self->{unknown_0}] unknown_1[$se2f->{unknown_1}]".
 			" unknown_2[$self->{unknown_2}] unknown_3[$self->{unknown_3}]\n";
 		
@@ -211,11 +201,11 @@ sub get_message_list {
 			}
 		}
 		
-		$self->{debug} && print "Processed labels, complete\n";
+		$self->{debug} && print STDERR "Processed labels, complete\n";
 
 		return @list;
 	} else {
-		$self->{debug} && print "Request failure error[".$res->status_line."]\n";
+		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
 		$self->{error} = $res->status_line;
 		return ();
 	}
@@ -224,18 +214,18 @@ sub get_message_list {
 sub get_message_raw {
 	my ($self, $msg_id) = @_;
 
-	$self->{debug} && print "In get_message_raw(msg_id[$msg_id]), making request...\n";
+	$self->{debug} && print STDERR "In get_message_raw(msg_id[$msg_id]), making request...\n";
 	
 	my $req = HTTP::Request->new(GET => sprintf("http://gmail.google.com/gmail?view=om&th=%s&zx=%s%s", $msg_id, $self->{js_version}, $self->zx()));
 	my $res = $self->{ua}->request($req);
 	
-	$self->{debug} && print "Got request\n";
+	$self->{debug} && print STDERR "Got request\n";
 	
 	if ($res->is_success) {
-		$self->{debug} && print "Request success\n";
+		$self->{debug} && print STDERR "Request success\n";
 		return $res->content;
 	} else {
-		$self->{debug} && print "Request failure error[".$res->status_line."]\n";
+		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
 		$self->{error} = $res->status_line;
 	}
 	
@@ -249,28 +239,28 @@ sub zx {
 sub js_version {
 	my $self = shift;
 	
-	$self->{debug} && print "In js_version()\n";
+	$self->{debug} && print STDERR "In js_version()\n";
 	
 	return 1 if ($self->{js_version});
 	
-	$self->{debug} && print "Requesting javascript from gmail.google.com\n";
+	$self->{debug} && print STDERR "Requesting javascript from gmail.google.com\n";
 	
 	my $req = HTTP::Request->new(GET => 'http://gmail.google.com/gmail?view=page&name=js');
 	my $res = $self->{ua}->request($req);
 
-	$self->{debug} && print "Got request\n";
+	$self->{debug} && print STDERR "Got request\n";
 	
 	if ($res->is_success) {
-		$self->{debug} && print "Request success\n";
+		$self->{debug} && print STDERR "Request success\n";
 		my $content = $res->content;
 		if ($content =~ m/var js_version\s*=\s*'([^']+)'/) {
-			$self->{debug} && print "Got js_version[$1]\n";
+			$self->{debug} && print STDERR "Got js_version[$1]\n";
 			# save this for later
 			$self->{js_version} = $1;
 			$self->{logged_in} = 1;
 			return 1;
 		} else {
-			$self->{debug} && print "Problem getting js_version, password incorrect?\n";
+			$self->{debug} && print STDERR "Problem getting js_version, password incorrect?\n";
 			$self->{error} = "Problem getting js_version, password incorrect?";
 			# not logged in...
 			$self->{logged_in} = 0;
@@ -285,18 +275,18 @@ sub js_version {
 sub logout {
 	my $self = shift;
 
-	$self->{debug} && print "In logout(), making request...\n";
+	$self->{debug} && print STDERR "In logout(), making request...\n";
 	
 	my $req = HTTP::Request->new(GET => "http://gmail.google.com/gmail?logout");
 	my $res = $self->{ua}->request($req);
 	
-	$self->{debug} && print "Got request\n";
+	$self->{debug} && print STDERR "Got request\n";
 	
 	if ($res->is_success) {
-		$self->{debug} && print "Request success\n";
+		$self->{debug} && print STDERR "Request success\n";
 		return 1;
 	} else {
-		$self->{debug} && print "Request failure error[".$res->status_line."]\n";
+		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
 		$self->{error} = $res->status_line;
 	}
 	
@@ -469,6 +459,10 @@ Enable persistant cookie?
 =head1 AUTHOR
 
 David Davis E<lt>xantus@cpan.orgE<gt>
+
+=head1 NOTICE
+
+**Use this module at your own risk, and read your Gmail terms of use**
 
 =head1 COPYRIGHT AND LICENSE
 
