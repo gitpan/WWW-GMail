@@ -1,0 +1,7 @@
+README
+Changes
+GMail.pm
+examples/gmail.pl
+MANIFEST
+Makefile.PL
+t/01_require.t
