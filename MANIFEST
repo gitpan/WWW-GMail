@@ -2,6 +2,7 @@ README
 Changes
 GMail.pm
 examples/newmessages.pl
+examples/contacts.pl
 MANIFEST
 Makefile.PL
 t/01_require.t

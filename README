@@ -29,13 +29,26 @@ SYNOPSIS
             $new_msgs += $list[$i]->[1]; # count the unread flags
       }
   
+      print "you have $new_msgs new messages in your inbox\n";
+  
+      my @contacts = $obj->get_contact_list();
+      print "you have ".(@contacts)." contacts\n";
+  
+      my $gmail = 0;
+      for my $i ( 0 .. $#contacts ) {
+            $gmail += ($contacts[$i]->[3] =~ m/gmail\.com$/i);
+      }
+  
+      print "$gmail of them are gmail addresses\n";
+  
       $obj->logout();
 
 ABSTRACT
     This module simplifies access to gmail.
 
 DESCRIPTION
-    Currently it allows retrieval of message lists, and raw messages.
+    Currently this module allows retrieval of message lists, raw messages,
+    and the contact list. All requests to gmail are secured using ssl.
 
   Methods
     There are currently 5 methods
@@ -68,10 +81,10 @@ DESCRIPTION
         $obj->{error} for reason -1 incorrect password and/or username
 
     "get_message_list"
-        This method returns an array of arrays Each array has an array of
-        info about the message Currenly, WWW::GMail doesn't strip the html
-        entities, do that yourself for now. A future version will have an
-        option passed to new() to adjust this.
+        This method returns an array of arrays Each array has an array ref
+        of info about the message Currenly, WWW::GMail doesn't strip the
+        html entities, do that yourself for now. A future version will have
+        an option passed to new() to adjust this.
 
         The array
 
@@ -100,15 +113,28 @@ DESCRIPTION
           List folder   $self->{list_folder}
 
           Labels        $self->{labels} (an array of arrays)
+  
           The array
-                 0              label
-                 1              number of new
+                 0      label
+                 1      number of new
 
     "get_message_raw"
         Pass it a message id from a message list (see get_message_list)
         Retrieves the raw message as a scalar, headers and all. Returns
         undef if there was an error or invalid id Check $obj->{error} for
         messages
+
+    "get_contact_list"
+        Returns all contacts in an array of arrayrefs. Contact id is not
+        strictly a number. I have ids such as 11b, be, 1b, d2, 117, 11f
+
+        Each array ref has
+
+              0     Contact id
+              1     Name
+              2     Name or blank (not sure what this is)
+              3     Email
+              4     Notes
 
     "logout"
         Logs out the current logged in account.

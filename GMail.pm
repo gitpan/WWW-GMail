@@ -4,11 +4,13 @@ package WWW::GMail;
 # a perl interface to google mail
 # Copyright (c) 2004 - David Davis
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 use HTTP::Cookies;
 use LWP::UserAgent;
 use HTTP::Request;
+#use URI::Escape qw(uri_escape);
+
 # XXX the makefile should make sure we have it
 #use Crypt::SSLeay; # cause LWP::UserAgent needs it for https
 
@@ -138,7 +140,7 @@ sub get_message_list {
 	$self->{debug} && print STDERR "In get_message_list(folder[$folder],offset[$offset])\n";
 	
 	my $content = undef;
-	my $req = HTTP::Request->new(GET => sprintf("http://gmail.google.com/gmail?search=%s&view=tl&start=%d&init=1&zx=%s%s", $folder, $offset, $self->{js_version}, $self->zx()));
+	my $req = HTTP::Request->new(GET => sprintf("https://gmail.google.com/gmail?search=%s&view=tl&start=%d&init=1&zx=%s%s", $folder, $offset, $self->{js_version}, $self->zx()));
 	my $res = $self->{ua}->request($req);
 	my @list;
 	
@@ -149,7 +151,7 @@ sub get_message_list {
 
 		$content = $res->content;
 		
-		$self->{debug} && print STDERR "Request success, processing list (if any)\n";
+		$self->{debug} && print STDERR "Processing list (if any)\n";
 		
 		# process message list
 		while ($content =~ m/
@@ -203,11 +205,11 @@ sub get_message_list {
 		
 		$self->{debug} && print STDERR "Processed labels, complete\n";
 
-		return @list;
+		return (wantarray) ? @list : \@list;
 	} else {
 		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
 		$self->{error} = $res->status_line;
-		return ();
+		return (wantarray) ? () : [];
 	}
 }
 
@@ -216,7 +218,7 @@ sub get_message_raw {
 
 	$self->{debug} && print STDERR "In get_message_raw(msg_id[$msg_id]), making request...\n";
 	
-	my $req = HTTP::Request->new(GET => sprintf("http://gmail.google.com/gmail?view=om&th=%s&zx=%s%s", $msg_id, $self->{js_version}, $self->zx()));
+	my $req = HTTP::Request->new(GET => sprintf("https://gmail.google.com/gmail?view=om&th=%s&zx=%s%s", $msg_id, $self->{js_version}, $self->zx()));
 	my $res = $self->{ua}->request($req);
 	
 	$self->{debug} && print STDERR "Got request\n";
@@ -229,6 +231,107 @@ sub get_message_raw {
 		$self->{error} = $res->status_line;
 	}
 	
+	return undef;
+}
+
+sub get_contact_list {
+	my $self = shift;
+	# frequently mailed
+	# http://gmail.google.com/gmail?view=cl&search=contacts&pnl=d
+	# all contacts
+	# http://gmail.google.com/gmail?view=cl&search=contacts&pnl=a
+
+	$self->{debug} && print STDERR "In get_contact_list, making request...\n";
+	
+	my $req = HTTP::Request->new(GET => sprintf("https://gmail.google.com/gmail?view=cl&search=contacts&pnl=a&zx=%s%s", $self->{js_version}, $self->zx()));
+	my $res = $self->{ua}->request($req);
+	
+	$self->{debug} && print STDERR "Got request\n";
+		
+	if ($res->is_success) {
+		$self->{debug} && print STDERR "Request success\n";
+		
+		my $content = $res->content;
+		
+		my @contacts;
+		while ($content =~ m/
+			,\["([^"]+)"		# 1 id
+			,"([^"]*)"			# 2 name
+			,"([^"]*)"			# 3 
+			,"([^"]+)"			# 4 email
+			,"([^"]*)"\]		# 5 notes
+			/xg) {
+			push(@contacts,[$1,$2,$3,$4,$5]);
+		}
+		
+		return (wantarray) ? @contacts : \@contacts;
+	} else {
+		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
+		$self->{error} = $res->status_line;
+	}
+	
+	return (wantarray) ? () : [];
+}
+
+sub delete_contacts {
+	my ($self, @ids) = @_;
+	# POST /gmail?ik=&view=up
+	# act=dc&c=<id>&c=<id>&c=<id>
+	return 0 unless(@ids);
+	
+	$self->{debug} && print STDERR "In delete_contacts(msg_ids[".join(',',@ids)."]), making request...\n";
+	
+	my $req = HTTP::Request->new(POST => 'https://gmail.google.com/gmail?ik=&view=up');
+	$req->content_type('application/x-www-form-urlencoded');
+	$req->content(sprintf("act=dc&%s", join('&',( map { "c=$_" } @ids ))));
+	my $res = $self->{ua}->request($req);
+	delete $self->{http_status_line};
+	
+	if ($res->is_success) {
+		$self->{debug} && print STDERR "Request success\n";
+		my $content = $res->content;
+		if ($content =~ m/your action was not successful/i) {
+			return 0;
+		} else {
+			return 1;
+		}
+	} else {
+		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
+		$self->{error} = $res->status_line;
+	}
+	return undef;
+}
+
+sub modify_contact {
+	my ($self, $id, $email, $name, $notes) = @_;
+	# POST /gmail?ik=&view=up
+	# act=ec&ct_id=<id>&ct_nm=Bittorrent+Yahoo&ct_em=bittorrent%40yahoogroups.com&ctf_n=Yahoo+Group
+	return 0 unless(length($id) && length($email));
+	
+	$self->{debug} && print STDERR "In delete_contact(id[$id],email[$email],name[$name],notes[$notes]), making request...\n";
+	
+	require URI::Escape;
+	my $req = HTTP::Request->new(POST => 'https://gmail.google.com/gmail?ik=&view=up');
+	$req->content_type('application/x-www-form-urlencoded');
+	$req->content(sprintf("act=ec&ct_id=%s&ct_nm=%s&ct_em=%s&ctf_n=%s"
+		, $id, URI::Escape::uri_escape($name), URI::Escape::uri_escape($email)
+		, URI::Escape::uri_escape($notes)
+	));
+	my $res = $self->{ua}->request($req);
+	delete $self->{http_status_line};
+	
+	if ($res->is_success) {
+		$self->{debug} && print STDERR "Request success\n";
+		my $content = $res->content;
+		if ($content =~ m/your action was not successful/i) {
+			return 0;
+		} else {
+			return 1;
+		}
+	} else {
+		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
+		$self->{error} = $res->status_line;
+	}
 	return undef;
 }
 
@@ -245,7 +348,7 @@ sub js_version {
 	
 	$self->{debug} && print STDERR "Requesting javascript from gmail.google.com\n";
 	
-	my $req = HTTP::Request->new(GET => 'http://gmail.google.com/gmail?view=page&name=js');
+	my $req = HTTP::Request->new(GET => 'https://gmail.google.com/gmail?view=page&name=js');
 	my $res = $self->{ua}->request($req);
 
 	$self->{debug} && print STDERR "Got request\n";
@@ -277,7 +380,7 @@ sub logout {
 
 	$self->{debug} && print STDERR "In logout(), making request...\n";
 	
-	my $req = HTTP::Request->new(GET => "http://gmail.google.com/gmail?logout");
+	my $req = HTTP::Request->new(GET => "https://gmail.google.com/gmail?logout");
 	my $res = $self->{ua}->request($req);
 	
 	$self->{debug} && print STDERR "Got request\n";
@@ -314,7 +417,6 @@ WWW::GMail - Perl extension for accessing Google Mail (gmail)
   	},
   );
   
-  
   my $ret = $obj->login();
   if ($ret == -1) {
   	print "password incorrect\n";
@@ -331,6 +433,18 @@ WWW::GMail - Perl extension for accessing Google Mail (gmail)
   	$new_msgs += $list[$i]->[1]; # count the unread flags
   }
   
+  print "you have $new_msgs new messages in your inbox\n";
+  
+  my @contacts = $obj->get_contact_list();
+  print "you have ".(@contacts)." contacts\n";
+  
+  my $gmail = 0;
+  for my $i ( 0 .. $#contacts ) {
+  	$gmail += ($contacts[$i]->[3] =~ m/gmail\.com$/i);
+  }
+  
+  print "$gmail of them are gmail addresses\n";
+  
   $obj->logout();
 
 =head1 ABSTRACT
@@ -339,7 +453,8 @@ This module simplifies access to gmail.
 
 =head1 DESCRIPTION
 
-Currently it allows retrieval of message lists, and raw messages.
+Currently this module allows retrieval of message lists, raw messages,
+and the contact list.  All requests to gmail are secured using ssl.
 
 =head2 Methods
 
@@ -390,7 +505,7 @@ Return values are:
 =item C<get_message_list>
 
 This method returns an array of arrays
-Each array has an array of info about the message
+Each array has an array ref of info about the message
 Currenly, WWW::GMail doesn't strip the html entities, do that yourself for now.
 A future version will have an option passed to new() to adjust this.
 
@@ -425,9 +540,10 @@ Also available after calling get_message_list is:
   List folder	$self->{list_folder}
 
   Labels	$self->{labels} (an array of arrays)
+  
   The array
- 	 0		label
- 	 1		number of new
+ 	 0	label
+ 	 1	number of new
 
 =item C<get_message_raw>
 
@@ -435,6 +551,23 @@ Pass it a message id from a message list (see get_message_list)
 Retrieves the raw message as a scalar, headers and all.
 Returns undef if there was an error or invalid id
 Check $obj->{error} for messages
+
+=item C<get_contact_list>
+
+Returns all contacts in an array of arrayrefs. Contact id is not strictly a number.
+I have ids such as 11b, be, 1b, d2, 117, 11f
+
+Each array ref has
+
+=over 4
+
+  0	Contact id
+  1	Name
+  2	Name or blank (not sure what this is)
+  3	Email
+  4	Notes
+
+=back 4
 
 =item C<logout>
 
