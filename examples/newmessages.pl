@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-use lib qw(../blib/lib);
+use lib qw(blib/lib ../blib/lib);
 
 use WWW::GMail;
 use strict;
@@ -10,6 +10,7 @@ die "$0 <user> <pass>\n" unless ($ARGV[0] && $ARGV[1]);
 my $g = WWW::GMail->new(
 	username => $ARGV[0],
 	password => $ARGV[1],
+	debug => $ARGV[2],
 	cookies => {
 		autosave => 1,
 		file => "./gmail.cookie",

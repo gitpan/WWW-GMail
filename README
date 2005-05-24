@@ -100,6 +100,7 @@ DESCRIPTION
               9     attachments
               10    message id (again?)
               11    ? unknown
+              12    full date
 
         See the SYNOPSIS
 
@@ -156,7 +157,7 @@ NOTICE
     **Use this module at your own risk, and read your Gmail terms of use**
 
 COPYRIGHT AND LICENSE
-    Copyright 2004 by David Davis and Teknikill Software
+    Copyright 2004-2005 by David Davis and Teknikill Software
 
     This library is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

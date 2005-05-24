@@ -2,9 +2,9 @@ package WWW::GMail;
 
 # GoogleMail (GMail)
 # a perl interface to google mail
-# Copyright (c) 2004 - David Davis
+# Copyright (c) 2004 - 2005 David Davis
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 use HTTP::Cookies;
 use LWP::UserAgent;
@@ -150,6 +150,12 @@ sub get_message_list {
 		$self->{debug} && print STDERR "Request success\n";
 
 		$content = $res->content;
+
+		$self->{debug} && do {
+			open(FH,">/tmp/gmail_get_message_list.txt");
+			print FH $content;
+			close(FH);
+		};
 		
 		$self->{debug} && print STDERR "Processing list (if any)\n";
 		
@@ -162,13 +168,14 @@ sub get_message_list {
 			     ,"([^"]+)"			# 5 from
 			     ,"([^"]+)"			# 6 indicator
 			     ,"([^"]+)"			# 7 subj
-			     ,"([^"]+)"			# 8 sent
+			     ,"([^"]+)?"		# 8 sent
 			     ,\[(?:"(.+)")?\]\s # 9 tags
 			     ,"([^"]+)?"		# 10 attachments
 			     ,"([^"]+)"			# 11 id (again)
 			     ,(\d+)				# 12 ?
+				 ,"([^"]+)"			# 13 full date
 			     /xg) {
-			push(@list,[$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12]);
+			push(@list,[$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13]);
 			# turn the label tags into an array ref
 			$list[-1][8] = [ split('","',$list[-1][8]) ];
 		}
@@ -180,11 +187,11 @@ sub get_message_list {
 	
 		$self->{debug} && print STDERR "Processed percentages used[$self->{used}] total[$self->{total}] percent_used[$self->{percent_used}]\n";
 		
-		#D(["ts",0,50,88,0,"All Mail","fd5a5ed691",170]\n);
-		if ($content =~ m/D\(\["ts",(\d+),(\d+),(\d+),(\d+),"([^"]+)","([^"]+)",(\d+)\]/) {
+		#D(["ts",0,50,88,0,"Inbox","in:inbox","fd5a5ed691",170]\n);
+		if ($content =~ m/D\(\["ts",(\d+),(\d+),(\d+),(\d+),"([^"]+)","([^"]+)","([^"]+)",(\d+)\]/) {
 			($self->{unknown_0}, $self->{per_page}, $self->{list_total},
 				$self->{unknown_1}, $self->{list_folder}, $self->{unknown_2},
-				$self->{unknown_3}) = ($1,$2,$3,$4,$5,$6,$7);
+				$self->{unknown_3}, $self->{unknown_4}) = ($1,$2,$3,$4,$5,$6,$7,$8);
 		}
 		
 		$self->{debug} && print STDERR "Processed misc data per_page[$self->{per_page}] list_total[$self->{list_total}]".
@@ -255,11 +262,12 @@ sub get_contact_list {
 		
 		my @contacts;
 		while ($content =~ m/
-			,\["([^"]+)"		# 1 id
-			,"([^"]*)"			# 2 name
-			,"([^"]*)"			# 3 
-			,"([^"]+)"			# 4 email
-			,"([^"]*)"\]		# 5 notes
+			,\[".*?"
+			, "([^"]+)"		# 1 id
+			,"([^"]*)"		# 2 name
+			,"([^"]*)"		# 3
+			,"([^"]+)"		# 4 email
+			,"([^"]*)"\]	# 5 notes
 			/xg) {
 			push(@contacts,[$1,$2,$3,$4,$5]);
 		}
@@ -525,6 +533,7 @@ The array
   9	attachments
   10	message id (again?)
   11	? unknown
+  12 	full date
 
 =back 4
 
@@ -599,7 +608,7 @@ David Davis E<lt>xantus@cpan.orgE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2004 by David Davis and Teknikill Software
+Copyright 2004-2005 by David Davis and Teknikill Software
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

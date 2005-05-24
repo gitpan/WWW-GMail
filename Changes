@@ -1,5 +1,9 @@
 Revision history for Perl extension WWW::GMail
 
+0.04  Mon May 24 01:11:00 2005
+	- fixed message processing
+	- Balazs Rauznitz sent in a fix for get_contact_list
+
 0.03  Thu Dec 23 11:14:00 2004
 	- added get_contact_list
 	- added delete_contacts

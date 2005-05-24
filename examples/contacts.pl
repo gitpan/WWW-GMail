@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 # for my dev env
-use lib qw(../blib/lib);
+use lib qw( blib/lib ../blib/lib);
 
 use WWW::GMail;
 use strict;
@@ -13,7 +13,7 @@ my $g = WWW::GMail->new(
 	password => $ARGV[1],
 	cookies => {
 		autosave => 1,
-		file => "./gmail.cookie",
+		file => "./.gmail.cookie",
 	},
 #	debug => 1,
 );
@@ -23,6 +23,7 @@ $0 = (split(/ /,$0,1))[0]; # so user/pass don't show up in ps
 my $ret = $g->login();
 if ($ret == -1) {
 	print "password incorrect\n";
+	exit;
 } elsif ($ret == 0) {
 	print "unable to login, unknown error\n";
 	exit;

@@ -10,4 +10,9 @@ WriteMakefile(
 		HTTP::Request => undef,
 		Crypt::SSLeay => undef,
 	},
+	'dist' => {
+		'SUFFIX'       => ".gz",
+		'DIST_DEFAULT' => 'all tardist',
+		'COMPRESS'     => "gzip -9vf",
+	},						
 );
