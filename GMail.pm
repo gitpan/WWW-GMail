@@ -4,7 +4,7 @@ package WWW::GMail;
 # a perl interface to google mail
 # Copyright (c) 2004 - 2005 David Davis
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 use HTTP::Cookies;
 use LWP::UserAgent;
@@ -267,7 +267,7 @@ sub get_contact_list {
 			,"([^"]*)"		# 2 name
 			,"([^"]*)"		# 3
 			,"([^"]+)"		# 4 email
-			,"([^"]*)"\]	# 5 notes
+			,"([^"]*)"		# 5 notes
 			/xg) {
 			push(@contacts,[$1,$2,$3,$4,$5]);
 		}
