@@ -1,25 +1,29 @@
 Revision history for Perl extension WWW::GMail
 
-0.05  Thu Jun 09 21:24:00 2005
+0.06  Tue Aug 09 2005
+	- fixed the login process
+	- fixed README, it had dos \r\n's
+
+0.05  Thu Jun 09 2005
 	- fixed get_contact_list, thanks Balazs for
 		noticing the change
 
-0.04  Mon May 24 01:11:00 2005
+0.04  Mon May 24 2005
 	- fixed message processing
 	- Balazs Rauznitz sent in a fix for get_contact_list
 
-0.03  Thu Dec 23 11:14:00 2004
+0.03  Thu Dec 23 2004
 	- added get_contact_list
 	- added delete_contacts
 	- added modify_contact
 	- documented get_contact_list
 	- merry xmas
 
-0.02  Wed Sep 29 20:32:21 2004
+0.02  Wed Sep 29 2004
 	- fixed login sequence, gmail changed...
 	- added STDERR to debug prints
 	- README is just a pod2text of GMail.pm now
 	- renamed the only example
 
-0.01  Mon Jul 12 03:03:43 2004
+0.01  Mon Jul 12 2004
 	- original version

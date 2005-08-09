@@ -4,7 +4,7 @@ package WWW::GMail;
 # a perl interface to google mail
 # Copyright (c) 2004 - 2005 David Davis
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 use HTTP::Cookies;
 use LWP::UserAgent;
@@ -53,7 +53,7 @@ sub login {
 	$self->{debug} && print STDERR "In login()\n";
 	
 	# faster!
-	return 1 if ($self->js_version());
+	return 1 if ($self->{js_version});
 
 	$self->{debug} && print STDERR "Setting up cookie jar\n";
 	
@@ -71,10 +71,10 @@ sub login {
 	);
 	
 	$self->{debug} && print STDERR "Requesting login\n";
-	
-	my $req = HTTP::Request->new(POST => 'https://www.google.com/accounts/ServiceLoginBoxAuth');
+	# https://www.google.com/accounts/ServiceLogin?service=mail&passive=true&rm=false&continue=
+	my $req = HTTP::Request->new(POST => 'https://www.google.com/accounts/ServiceLoginAuth');
 	$req->content_type('application/x-www-form-urlencoded');
-	$req->content(sprintf("service=mail&continue=https://gmail.google.com/gmail&Email=%s&Passwd=%s&PersistentCookie=yes&null=Sign%20in", $username, $password));
+	$req->content(sprintf("service=mail&continue=https://mail.google.com/mail/&Email=%s&Passwd=%s&PersistentCookie=yes&null=Sign%20in", $username, $password));
 	my $res = $self->{ua}->request($req);
 	delete $self->{http_status_line};
 	
@@ -94,16 +94,16 @@ sub login {
 			# load the CheckCookie url
 			#PersistentCookie=yes
 #			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/CheckCookie?service=mail&continue=http%3A%2F%2Fgmail.google.com%2Fgmail&chtml=LoginDoneHtml');
-			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/'.$1);
+			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/CheckCookie?chtml=LoginDoneHtml'.$1);
 			
 			$res = $self->{ua}->request($req);
 			delete $self->{http_status_line};
 			if ($res->is_success) {
 				$self->{debug} && print STDERR "Request success\n";
-				$content = $res->content;
+				#$content = $res->content;
 				# TODO check content?
-				$req = HTTP::Request->new(GET => 'http://www.google.com/');
-				$res = $self->{ua}->request($req);
+				#$req = HTTP::Request->new(GET => 'http://www.google.com/');
+				#$res = $self->{ua}->request($req);
 				
 				return 1 if ($self->js_version());
 			} else {
@@ -123,6 +123,26 @@ sub login {
 			$self->{error} = "unknown error (module not smart enough)";
 		}
 	} else {
+		if ($res->status_line == 302) {
+			$self->{debug} && print STDERR "302 location: ".$res->header('location')."\n";
+			
+			$req = HTTP::Request->new(GET => $res->header('location'));
+			
+			$res = $self->{ua}->request($req);
+			delete $self->{http_status_line};
+			if ($res->is_success) {
+				$self->{debug} && print STDERR "Request success\n";
+				#$content = $res->content;
+				
+				# TODO check content?
+				#$req = HTTP::Request->new(GET => 'http://www.google.com/');
+				#$res = $self->{ua}->request($req);
+				
+				return 1 if ($self->js_version());
+			} else {
+				$self->{error} = $res->status_line;
+			}
+		}
 		$self->{debug} && print STDERR "Request failure error[".$res->status_line."]\n";
 		$self->{error} = $res->status_line;
 	}
@@ -140,7 +160,7 @@ sub get_message_list {
 	$self->{debug} && print STDERR "In get_message_list(folder[$folder],offset[$offset])\n";
 	
 	my $content = undef;
-	my $req = HTTP::Request->new(GET => sprintf("https://gmail.google.com/gmail?search=%s&view=tl&start=%d&init=1&zx=%s%s", $folder, $offset, $self->{js_version}, $self->zx()));
+	my $req = HTTP::Request->new(GET => sprintf("https://mail.google.com/mail/?search=%s&view=tl&start=%d&init=1&zx=%s%s", $folder, $offset, $self->{js_version}, $self->zx()));
 	my $res = $self->{ua}->request($req);
 	my @list;
 	
@@ -188,7 +208,7 @@ sub get_message_list {
 		$self->{debug} && print STDERR "Processed percentages used[$self->{used}] total[$self->{total}] percent_used[$self->{percent_used}]\n";
 		
 		#D(["ts",0,50,88,0,"Inbox","in:inbox","fd5a5ed691",170]\n);
-		if ($content =~ m/D\(\["ts",(\d+),(\d+),(\d+),(\d+),"([^"]+)","([^"]+)","([^"]+)",(\d+)\]/) {
+		if ($content =~ m/D\(\["ts",(\d+),(\d+),(\d+),(\d+),"([^"]+)","([^"]+)","([^"]+)",(\d+)/) {
 			($self->{unknown_0}, $self->{per_page}, $self->{list_total},
 				$self->{unknown_1}, $self->{list_folder}, $self->{unknown_2},
 				$self->{unknown_3}, $self->{unknown_4}) = ($1,$2,$3,$4,$5,$6,$7,$8);
@@ -225,7 +245,7 @@ sub get_message_raw {
 
 	$self->{debug} && print STDERR "In get_message_raw(msg_id[$msg_id]), making request...\n";
 	
-	my $req = HTTP::Request->new(GET => sprintf("https://gmail.google.com/gmail?view=om&th=%s&zx=%s%s", $msg_id, $self->{js_version}, $self->zx()));
+	my $req = HTTP::Request->new(GET => sprintf("https://mail.google.com/mail/?view=om&th=%s&zx=%s%s", $msg_id, $self->{js_version}, $self->zx()));
 	my $res = $self->{ua}->request($req);
 	
 	$self->{debug} && print STDERR "Got request\n";
@@ -250,7 +270,7 @@ sub get_contact_list {
 
 	$self->{debug} && print STDERR "In get_contact_list, making request...\n";
 	
-	my $req = HTTP::Request->new(GET => sprintf("https://gmail.google.com/gmail?view=cl&search=contacts&pnl=a&zx=%s%s", $self->{js_version}, $self->zx()));
+	my $req = HTTP::Request->new(GET => sprintf("https://mail.google.com/mail/?view=cl&search=contacts&pnl=a&zx=%s%s", $self->{js_version}, $self->zx()));
 	my $res = $self->{ua}->request($req);
 	
 	$self->{debug} && print STDERR "Got request\n";
@@ -289,7 +309,7 @@ sub delete_contacts {
 	
 	$self->{debug} && print STDERR "In delete_contacts(msg_ids[".join(',',@ids)."]), making request...\n";
 	
-	my $req = HTTP::Request->new(POST => 'https://gmail.google.com/gmail?ik=&view=up');
+	my $req = HTTP::Request->new(POST => 'https://mail.google.com/mail/?ik=&view=up');
 	$req->content_type('application/x-www-form-urlencoded');
 	$req->content(sprintf("act=dc&%s", join('&',( map { "c=$_" } @ids ))));
 	my $res = $self->{ua}->request($req);
@@ -319,7 +339,7 @@ sub modify_contact {
 	$self->{debug} && print STDERR "In delete_contact(id[$id],email[$email],name[$name],notes[$notes]), making request...\n";
 	
 	require URI::Escape;
-	my $req = HTTP::Request->new(POST => 'https://gmail.google.com/gmail?ik=&view=up');
+	my $req = HTTP::Request->new(POST => 'https://mail.google.com/mail/?ik=&view=up');
 	$req->content_type('application/x-www-form-urlencoded');
 	$req->content(sprintf("act=ec&ct_id=%s&ct_nm=%s&ct_em=%s&ctf_n=%s"
 		, $id, URI::Escape::uri_escape($name), URI::Escape::uri_escape($email)
@@ -350,13 +370,14 @@ sub zx {
 sub js_version {
 	my $self = shift;
 	
+#	return 1;
 	$self->{debug} && print STDERR "In js_version()\n";
 	
 	return 1 if ($self->{js_version});
 	
-	$self->{debug} && print STDERR "Requesting javascript from gmail.google.com\n";
+	$self->{debug} && print STDERR "Requesting javascript from mail.google.com\n";
 	
-	my $req = HTTP::Request->new(GET => 'https://gmail.google.com/gmail?view=page&name=js');
+	my $req = HTTP::Request->new(GET => 'https://mail.google.com/mail/?view=page&name=js');
 	my $res = $self->{ua}->request($req);
 
 	$self->{debug} && print STDERR "Got request\n";
@@ -364,6 +385,18 @@ sub js_version {
 	if ($res->is_success) {
 		$self->{debug} && print STDERR "Request success\n";
 		my $content = $res->content;
+		if ($content =~ m/top\.location=("|')([^\1]+)\1/ && !$_[0]) {
+			$self->{debug} && print STDERR "found location $2, probably means bad login\n";
+			return 0;
+			my $newreq = HTTP::Request->new(GET => $2);
+			$res = $self->{ua}->request($newreq);
+			unless ($res->is_success) {
+				$self->{error} = $res->status_line;
+				return 0;
+			}
+			return $self->js_version(1);
+			#$content = $res->content;
+		}
 		if ($content =~ m/var js_version\s*=\s*'([^']+)'/) {
 			$self->{debug} && print STDERR "Got js_version[$1]\n";
 			# save this for later
@@ -372,6 +405,7 @@ sub js_version {
 			return 1;
 		} else {
 			$self->{debug} && print STDERR "Problem getting js_version, password incorrect?\n";
+			$self->{debug} && print STDERR $content;
 			$self->{error} = "Problem getting js_version, password incorrect?";
 			# not logged in...
 			$self->{logged_in} = 0;
@@ -388,7 +422,7 @@ sub logout {
 
 	$self->{debug} && print STDERR "In logout(), making request...\n";
 	
-	my $req = HTTP::Request->new(GET => "https://gmail.google.com/gmail?logout");
+	my $req = HTTP::Request->new(GET => "https://mail.google.com/mail/?logout");
 	my $res = $self->{ua}->request($req);
 	
 	$self->{debug} && print STDERR "Got request\n";

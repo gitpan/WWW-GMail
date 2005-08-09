@@ -13,7 +13,7 @@ my $g = WWW::GMail->new(
 	debug => $ARGV[2],
 	cookies => {
 		autosave => 1,
-		file => "./gmail.cookie",
+		file => "./.gmail.cookie",
 	},
 #	debug => 1,
 );
@@ -23,6 +23,7 @@ $0 = (split(/ /,$0,1))[0]; # so user/pass don't show up in ps
 my $ret = $g->login();
 if ($ret == -1) {
 	print "password incorrect\n";
+	exit;
 } elsif ($ret == 0) {
 	print "unable to login, unknown error\n";
 	exit;
@@ -46,10 +47,10 @@ for my $i ( 0 .. $#list ) {
 print "Number of new messages in $g->{list_folder}: $new_msgs\n";
 
 # grab the raw form of the first message in the inbox, if available
-if (@list) {
-	print "First message in $g->{list_folder}:\n";
-	print $g->get_message_raw($list[0]->[0]);
-}
+#if (@list) {
+#	print "First message in $g->{list_folder}:\n";
+#	print $g->get_message_raw($list[0]->[0]);
+#}
 
 # Don't logout, the cookie file keeps us logged in
 #$obj->logout();

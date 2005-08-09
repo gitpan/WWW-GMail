@@ -12,7 +12,7 @@ WriteMakefile(
 	},
 	'dist' => {
 		'SUFFIX'       => ".gz",
-		'DIST_DEFAULT' => 'all tardist',
+#		'DIST_DEFAULT' => 'all tardist',
 		'COMPRESS'     => "gzip -9vf",
 	},						
 );
