@@ -2,14 +2,17 @@ package WWW::GMail;
 
 # GoogleMail (GMail)
 # a perl interface to google mail
-# Copyright (c) 2004 - 2005 David Davis
+# Copyright (c) 2004 - 2006 David Davis
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
+use strict;
+use warnings;
 use HTTP::Cookies;
 use LWP::UserAgent;
 use HTTP::Request;
-#use URI::Escape qw(uri_escape);
+use URI::Escape qw(uri_escape);
+use Carp qw(croak);
 
 # XXX the makefile should make sure we have it
 #use Crypt::SSLeay; # cause LWP::UserAgent needs it for https
@@ -18,36 +21,42 @@ sub new {
 	my $class = shift;
 	my %opts = @_;
 
-	$self->{debug} && print STDERR "In new()\n";
+	$opts{debug} && print STDERR "In new()\n";
 	
 	unless ($opts{agent}) {
-		# fake as ie 6
-		$opts{agent} = "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1; .NET CLR 1.1.4322)";
+		# fake as firefox
+		$opts{agent} = "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.7.10) Gecko/20050716 Firefox/1.0.6 (ax)";
 	}
+
+    unless ($opts{cookies}) {
+        $opts{cookies} = {};
+    }
+
+    unless (ref($opts{cookies}) eq 'HASH') {
+        croak "cookies param must be a hash ref";
+    }
 	
-	my $obj = bless(\%opts,$class);
+	my $self = bless(\%opts,$class);
 	
-	$obj->{error} = '';
-	$self->{debug} && print STDERR "Setting user-agent to [$opt{agent}]\n";
+	$self->{error} = '';
+	$self->{debug} && print STDERR "Setting user-agent to [$self->{agent}]\n";
 	
-	$obj->{ua} = LWP::UserAgent->new();
-	$obj->{ua}->agent($opts{agent});
+	$self->{ua} = LWP::UserAgent->new();
+	$self->{ua}->agent($self->{agent});
 
 	$self->{debug} && print STDERR "Setting up cookie jar (HTTP\:\:Cookies)\n";
 	
-	my $jar = $obj->{jar} = HTTP::Cookies->new(%{$opts{cookies}});
+	my $jar = $self->{jar} = HTTP::Cookies->new(%{$self->{cookies}});
 
-	$obj->{ua}->cookie_jar($jar);
+	$self->{ua}->cookie_jar($jar);
 	
 	$self->{debug} && print STDERR "new() complete\n";
 	
-	return $obj;
+	return $self;
 }
 
 sub login {
 	my $self = shift;
-	my $username = $self->{username};
-	my $password = $self->{password};
 	my $content = undef;
 	
 	$self->{debug} && print STDERR "In login()\n";
@@ -74,7 +83,8 @@ sub login {
 	# https://www.google.com/accounts/ServiceLogin?service=mail&passive=true&rm=false&continue=
 	my $req = HTTP::Request->new(POST => 'https://www.google.com/accounts/ServiceLoginAuth');
 	$req->content_type('application/x-www-form-urlencoded');
-	$req->content(sprintf("service=mail&continue=https://mail.google.com/mail/&Email=%s&Passwd=%s&PersistentCookie=yes&null=Sign%20in", $username, $password));
+	$req->content(sprintf("service=mail&continue=https://mail.google.com/mail/&Email=%s&Passwd=%s&PersistentCookie=yes&null=Sign%%20in",
+        uri_escape($self->{username}), uri_escape($self->{password})));
 	my $res = $self->{ua}->request($req);
 	delete $self->{http_status_line};
 	
@@ -94,7 +104,7 @@ sub login {
 			# load the CheckCookie url
 			#PersistentCookie=yes
 #			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/CheckCookie?service=mail&continue=http%3A%2F%2Fgmail.google.com%2Fgmail&chtml=LoginDoneHtml');
-			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/CheckCookie?chtml=LoginDoneHtml'.$1);
+			$req = HTTP::Request->new(GET => 'https://www.google.com/accounts/CheckCookie?chtml=LoginDoneHtml');
 			
 			$res = $self->{ua}->request($req);
 			delete $self->{http_status_line};
@@ -123,7 +133,7 @@ sub login {
 			$self->{error} = "unknown error (module not smart enough)";
 		}
 	} else {
-		if ($res->status_line == 302) {
+		if ($res->status_line =~ m/302/) {
 			$self->{debug} && print STDERR "302 location: ".$res->header('location')."\n";
 			
 			$req = HTTP::Request->new(GET => $res->header('location'));
@@ -160,7 +170,8 @@ sub get_message_list {
 	$self->{debug} && print STDERR "In get_message_list(folder[$folder],offset[$offset])\n";
 	
 	my $content = undef;
-	my $req = HTTP::Request->new(GET => sprintf("https://mail.google.com/mail/?search=%s&view=tl&start=%d&init=1&zx=%s%s", $folder, $offset, $self->{js_version}, $self->zx()));
+	my $req = HTTP::Request->new(GET => sprintf("https://mail.google.com/mail/?search=%s&view=tl&start=%d&init=1&zx=%s%s",
+        uri_escape($folder), $offset, $self->{js_version}, $self->zx()));
 	my $res = $self->{ua}->request($req);
 	my @list;
 	
@@ -215,7 +226,7 @@ sub get_message_list {
 		}
 		
 		$self->{debug} && print STDERR "Processed misc data per_page[$self->{per_page}] list_total[$self->{list_total}]".
-			" list_folder[$self->{list_folder}] unknown_0[$self->{unknown_0}] unknown_1[$se2f->{unknown_1}]".
+			" list_folder[$self->{list_folder}] unknown_0[$self->{unknown_0}] unknown_1[$self->{unknown_1}]".
 			" unknown_2[$self->{unknown_2}] unknown_3[$self->{unknown_3}]\n";
 		
 		# list of labels
@@ -638,7 +649,7 @@ David Davis E<lt>xantus@cpan.orgE<gt>
 
 =head1 NOTICE
 
-**Use this module at your own risk, and read your Gmail terms of use**
+**Use this module at your own risk, and read Gmail's terms of use**
 
 =head1 COPYRIGHT AND LICENSE
 

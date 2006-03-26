@@ -5,14 +5,16 @@ WriteMakefile(
     'NAME'		=> 'WWW::GMail',
     'VERSION_FROM'	=> 'GMail.pm', # finds $VERSION
     'PREREQ_PM'		=> {
+        Crypt::SSLeay => undef,
 		HTTP::Cookies => undef,
 		LWP::UserAgent => undef,
 		HTTP::Request => undef,
-		Crypt::SSLeay => undef,
-	},
+	    URI::Escape => undef,
+        Carp => undef,
+    },
 	'dist' => {
 		'SUFFIX'       => ".gz",
-#		'DIST_DEFAULT' => 'all tardist',
+		'DIST_DEFAULT' => 'all tardist',
 		'COMPRESS'     => "gzip -9vf",
 	},						
 );

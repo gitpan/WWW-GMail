@@ -5,5 +5,5 @@ examples/newmessages.pl
 examples/contacts.pl
 MANIFEST
 Makefile.PL
-t/1.t
+t/01_require.t
 META.yml                                 Module meta-data (added by MakeMaker)
